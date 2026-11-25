@@ -1,0 +1,7 @@
+torch
+numpy
+opencv-python
+scikit-learn
+huggingface_hub
+Pillow
+streamlit

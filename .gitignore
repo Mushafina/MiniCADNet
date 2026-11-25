@@ -1,0 +1,31 @@
+# Python caches & environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Dataset files & archives (never push dataset images)
+data/raw/
+data/processed/
+*.zip
+*.tar
+*.tar.gz
+
+# Temporary & OS files
+_sanity_tmp/
+.DS_Store
+Thumbs.db
+*.log
+
+# Secrets & credentials
+.env
+*.pem
+*.key
+*credentials*.json
+*secret*
+
+# Keep best model checkpoint, metrics, and plots; ignore recovery checkpoint
+outputs/checkpoints/last_checkpoint.pth
