@@ -19,90 +19,118 @@ def load_predictor(ckpt_path: str) -> MiniCADPredictor:
 
 
 def main() -> None:
-    st.set_page_config(page_title="MiniCADNet v1 Prototype", page_icon="🚗", layout="centered")
+    st.set_page_config(
+        page_title="MiniCADNet — Automotive Damage Classifier",
+        page_icon="🚗",
+        layout="wide",
+    )
 
-    st.title("MiniCADNet v1")
-    st.caption("Miniature Compact Automotive Damage Classification Network (trained from scratch)")
+    st.title("MiniCADNet v1 — Automotive Damage Classification")
+    st.caption(
+        "Miniature Compact Automotive Damage Classification Network | "
+        "Custom CNN trained from scratch (4,397 trainable parameters)"
+    )
 
     st.warning(
-        "**Important Limitation:** This model classifies automotive damage images/crops. "
+        "**Critical Input Limitation:** This model classifies automotive damage images/crops. "
         "It is not a full vehicle damage detector. Full vehicle images may produce unreliable predictions."
     )
 
-    with st.expander("Input Guidance (Recommended)"):
-        st.markdown(
-            "- Upload a **close-up crop** centered on a single damage region "
-            "(`Scratch`, `Dent`, `Broken part`, `Paint chip`, or `Missing part`).\n"
-            "- The model resizes the image to **96 × 96 RGB** and outputs a single-label classification.\n"
-            "- It does **not** localize damage or draw bounding boxes."
-        )
-
     ckpt_path = CFG.checkpoint_dir / "best_model.pth"
-    model_param_count = sum(p.numel() for p in MiniCADNet(num_classes=CFG.num_classes).parameters() if p.requires_grad)
-
-    with st.sidebar:
-        st.header("Model Info")
-        st.write(f"**Architecture:** Custom CNN (v1)")
-        st.write(f"**Trainable Parameters:** {model_param_count:,}")
-        st.write(f"**Input Size:** {CFG.image_size[0]} × {CFG.image_size[1]} RGB")
-        st.write(f"**Classes ({CFG.num_classes}):** {', '.join(CFG.target_classes)}")
-        st.write(f"**Checkpoint:** {'Found' if ckpt_path.exists() else 'Missing'}")
-
-    if not ckpt_path.exists():
-        st.error(
-            f"Trained checkpoint not found at `{ckpt_path}`.\n\n"
-            "Please copy `best_model.pth` from your Colab/Google Drive backup "
-            "(`MyDrive/MiniCADNet_v1/outputs/checkpoints/best_model.pth`) into `outputs/checkpoints/best_model.pth` "
-            "and reload this page."
-        )
-        return
-
-    try:
-        predictor = load_predictor(str(ckpt_path))
-    except Exception as exc:
-        st.error(f"Failed to load model checkpoint: {exc}")
-        return
-
-    uploaded_file = st.file_uploader(
-        "Upload a cropped automotive damage image (JPG, JPEG, PNG)",
-        type=["jpg", "jpeg", "png"],
+    model_param_count = sum(
+        p.numel() for p in MiniCADNet(num_classes=CFG.num_classes).parameters() if p.requires_grad
     )
 
-    if uploaded_file is None:
+    predictor: MiniCADPredictor | None = None
+    ckpt_error: str | None = None
+    if not ckpt_path.exists():
+        ckpt_error = (
+            "Trained model checkpoint (`best_model.pth`) was not found. "
+            "Place the trained checkpoint in `outputs/checkpoints/best_model.pth` and reload."
+        )
+    else:
+        try:
+            predictor = load_predictor(str(ckpt_path))
+        except Exception as exc:
+            ckpt_error = f"Failed to load trained checkpoint: {exc}"
+
+    with st.sidebar:
+        st.header("Model Information")
+        st.markdown(
+            f"- **Model:** MiniCADNet (v1)\n"
+            f"- **Architecture:** Custom CNN trained from scratch\n"
+            f"- **Trainable Parameters:** `{model_param_count:,}`\n"
+            f"- **Input Size:** `{CFG.image_size[0]} × {CFG.image_size[1]}` RGB\n"
+            f"- **Categories ({CFG.num_classes}):** {', '.join(CFG.target_classes)}"
+        )
+        if predictor is not None:
+            st.success(f"Checkpoint loaded (Epoch {predictor.epoch})")
+        else:
+            st.error("Checkpoint unavailable")
+
+        with st.expander("Input Guidance"):
+            st.markdown(
+                "- Upload a **close-up crop** centered on a single damage region.\n"
+                "- Supported formats: **JPG, JPEG, PNG**.\n"
+                "- Images are resized to **96 × 96 RGB** before inference.\n"
+                "- MiniCADNet does **not** localize damage or draw bounding boxes."
+            )
+
+    if ckpt_error is not None or predictor is None:
+        st.error(ckpt_error or "Model checkpoint could not be loaded.")
         return
 
-    try:
-        image = Image.open(uploaded_file)
-        image.load()
-    except (UnidentifiedImageError, OSError) as exc:
-        st.error(f"Invalid image file: {exc}")
-        return
+    col_left, col_right = st.columns([1, 1], gap="large")
 
-    st.image(image, caption="Uploaded Image", use_container_width=True)
+    with col_left:
+        st.subheader("1. Upload Damage Crop")
+        uploaded_file = st.file_uploader(
+            "Choose a cropped automotive damage image (JPG, JPEG, PNG)",
+            type=["jpg", "jpeg", "png"],
+        )
 
-    if st.button("Predict", type="primary"):
+        if uploaded_file is None:
+            st.info("Upload a close-up damage crop to run classification.")
+            return
+
+        try:
+            image = Image.open(uploaded_file)
+            image.load()
+        except (UnidentifiedImageError, OSError):
+            st.error("Invalid or corrupted image file. Please upload a valid JPG, JPEG, or PNG image.")
+            return
+
+        st.image(image, caption=f"Uploaded Image ({image.size[0]} × {image.size[1]} px)", use_container_width=True)
+        run_clicked = st.button("Predict Damage Class", type="primary", use_container_width=True)
+
+    with col_right:
+        st.subheader("2. Classification Results")
+        if not run_clicked:
+            st.info("Click **Predict Damage Class** to inspect model predictions.")
+            return
+
         result = predictor.predict_pil(image)
         pred_cls = result["predicted_class"]
         conf = result["confidence"]
         probs = result["probabilities"]
 
-        st.subheader(f"Prediction: {pred_cls}")
-        st.metric("Confidence", f"{conf * 100:.2f}%")
+        m_col1, m_col2 = st.columns(2)
+        m_col1.metric("Predicted Category", pred_cls)
+        m_col2.metric("Confidence", f"{conf * 100:.2f}%")
 
         if conf < LOW_CONFIDENCE_THRESHOLD:
             st.warning(
                 f"Low confidence prediction ({conf * 100:.1f}% < {LOW_CONFIDENCE_THRESHOLD * 100:.0f}%). "
-                "Try uploading a tighter close-up crop of the damaged region."
+                "The image may contain multiple damage types, background clutter, or a full-vehicle view."
             )
 
-        st.subheader("Class Probabilities")
-        # Horizontal bar chart sorted by probability descending
+        st.markdown("#### Class Probabilities")
         sorted_items = sorted(probs.items(), key=lambda kv: kv[1], reverse=True)
         for cls_name, p in sorted_items:
-            col_label, col_bar, col_val = st.columns([2, 5, 1.5])
-            col_label.write(cls_name)
-            col_bar.progress(min(max(p, 0.0), 1.0))
-            col_val.write(f"{p * 100:.2f}%")
+            c_lbl, c_bar, c_pct = st.columns([2.2, 5.0, 1.5])
+            c_lbl.write(f"**{cls_name}**" if cls_name == pred_cls else cls_name)
+            c_bar.progress(min(max(p, 0.0), 1.0))
+            c_pct.write(f"{p * 100:.2f}%")
 
 
 if __name__ == "__main__":

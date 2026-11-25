@@ -26,15 +26,20 @@ class MiniCADPredictor:
         self.checkpoint_path = Path(checkpoint_path or (CFG.checkpoint_dir / "best_model.pth"))
         if not self.checkpoint_path.exists():
             raise FileNotFoundError(
-                f"Trained checkpoint not found at '{self.checkpoint_path}'. "
-                "Please copy best_model.pth from your training outputs (e.g. Google Drive) first."
+                "Trained model checkpoint (best_model.pth) was not found. "
+                "Ensure outputs/checkpoints/best_model.pth is present."
             )
 
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         ckpt = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
+        if "model_state_dict" not in ckpt:
+            raise ValueError("Invalid checkpoint format: missing 'model_state_dict'.")
 
         self.class_names: tuple[str, ...] = tuple(ckpt.get("class_names", CFG.target_classes))
         self.epoch: int = int(ckpt.get("epoch", -1))
+        if self.epoch <= 0:
+            raise ValueError(f"Checkpoint does not appear to be trained (epoch={self.epoch}).")
+
         self.model = MiniCADNet(num_classes=len(self.class_names)).to(self.device)
         self.model.load_state_dict(ckpt["model_state_dict"])
         self.model.eval()

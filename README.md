@@ -97,7 +97,9 @@ Evaluated once on the held-out `test` split (`717` crops):
 | `Paint chip` | 12.12% | 9.30% | 10.53% |
 | `Missing part` | 47.90% | 61.96% | 54.03% |
 
-- When placed in `outputs/plots/confusion_matrix.png`, the confusion matrix visualization can be viewed directly from the outputs folder.
+- **Confusion matrix & training curves:**
+  - [Confusion Matrix](outputs/plots/confusion_matrix.png)
+  - [Training Curves](outputs/plots/training_curves.png)
 
 ---
 
@@ -105,7 +107,7 @@ Evaluated once on the held-out `test` split (`717` crops):
 
 ### Installation
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Mushafina/MiniCADNet.git
 cd MiniCADNet
 pip install -r requirements.txt
 ```
@@ -123,10 +125,11 @@ python training/evaluate.py
 ```
 
 ### Streamlit Demo Prototype
-Ensure `outputs/checkpoints/best_model.pth` is present, then run:
+The trained v1 checkpoint (`outputs/checkpoints/best_model.pth`) is included in this repository. Start the interactive web app locally with:
 ```bash
 streamlit run app.py
 ```
+Then open the local URL printed by Streamlit (typically `http://localhost:8501`) and upload a close-up JPG/JPEG/PNG crop of a single automotive damage region.
 
 ---
 
